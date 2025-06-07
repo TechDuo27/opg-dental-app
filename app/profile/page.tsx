@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AuthWrapper from "@/components/AuthWrapper"
-import { ArrowLeft, User, Mail, Calendar, Activity, Save, Camera } from "lucide-react"
+import { ArrowLeft, User, Mail, Calendar, Activity, Save, Camera, MapPin } from "lucide-react"
 
 interface UserProfile {
   id: string
@@ -26,7 +26,10 @@ function ProfileContent() {
     name: "",
     age: "",
     sex: "",
-    smoking_status: ""
+    smoking_status: "",
+    country: "",
+    state: "",
+    area: ""
   })
 
   useEffect(() => {
@@ -54,7 +57,10 @@ function ProfileContent() {
           name: data.name,
           age: data.age.toString(),
           sex: data.sex,
-          smoking_status: data.smoking_status || ""
+          smoking_status: data.smoking_status || "",
+          country: data.country || "",
+          state: data.state || "",
+          area: data.area || ""
         })
       }
     } catch (error) {
@@ -78,6 +84,9 @@ function ProfileContent() {
           age: parseInt(formData.age),
           sex: formData.sex,
           smoking_status: formData.smoking_status || null,
+          country: formData.country,
+          state: formData.state,
+          area: formData.area,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id)
@@ -251,6 +260,12 @@ function ProfileContent() {
                     <Activity className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-600">{formData.age} years old</span>
                   </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-600">
+                      {formData.area && formData.state ? `${formData.area}, ${formData.state}` : 'Location not set'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -322,6 +337,48 @@ function ProfileContent() {
                       <option value="female">Female</option>
                       <option value="other">Other</option>
                     </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Country
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., India"
+                      value={formData.country}
+                      onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      State/Province
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., Karnataka"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      City/Area
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., Bengaluru"
+                      value={formData.area}
+                      onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+                    />
                   </div>
 
                   <div className="md:col-span-2">

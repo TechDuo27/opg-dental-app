@@ -5,7 +5,7 @@ import Image from "next/image"
 import { supabase } from "@/lib/supabaseClient"
 import { User } from "@supabase/supabase-js"
 import AuthWrapper from "@/components/AuthWrapper"
-import { Download, Upload, AlertCircle, Activity, FileImage, History, TrendingUp, CheckCircle } from "lucide-react"
+import { Download, Upload, AlertCircle, Activity, FileImage, History, TrendingUp, CheckCircle, Sparkles, Brain, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 type Detection = {
@@ -158,7 +158,7 @@ function ImageUploadDashboard() {
 
       setUploading(false)
       setAnalyzing(true)
-      setImageUrl(urlData.publicUrl) // Store the URL
+      setImageUrl(urlData.publicUrl)
       await simulateMLAnalysis(urlData.publicUrl)
 
     } catch (error) {
@@ -205,7 +205,6 @@ function ImageUploadDashboard() {
       setAnalysisResult(result)
       setAnalyzing(false)
 
-      // Save to analysis history only once
       if (!savingHistory && data.detections) {
         setSavingHistory(true)
         try {
@@ -220,7 +219,7 @@ function ImageUploadDashboard() {
             })
 
           if (!historyError) {
-            fetchUserStats() // Refresh stats
+            fetchUserStats()
           }
         } catch (historyError) {
           console.error('History save error:', historyError)
@@ -243,86 +242,121 @@ function ImageUploadDashboard() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OPG Analysis Report - ${new Date().toLocaleDateString()}</title>
+  <title>AI Dental Analysis Report - ${new Date().toLocaleDateString()}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .header h1 { color: #2563eb; margin-bottom: 10px; }
-    .section { margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 8px; }
-    .section h2 { color: #1f2937; margin-bottom: 15px; }
-    .detection { margin: 15px 0; padding: 15px; background: white; border-radius: 5px; border-left: 4px solid #3b82f6; }
-    .confidence { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 14px; font-weight: bold; }
-    .high { background: #fee2e2; color: #dc2626; }
-    .medium { background: #fef3c7; color: #d97706; }
-    .low { background: #d1fae5; color: #059669; }
-    .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 14px; }
-    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
-    .info-item { background: white; padding: 15px; border-radius: 5px; }
-    .label { font-weight: bold; color: #4b5563; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #333; }
+    .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 40px; text-align: center; }
+    .header h1 { margin: 0 0 10px 0; font-size: 2.5em; font-weight: 700; }
+    .header p { margin: 0; opacity: 0.9; font-size: 1.1em; }
+    .content { padding: 40px; }
+    .section { margin: 30px 0; padding: 25px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 15px; border-left: 5px solid #4f46e5; }
+    .section h2 { color: #1e293b; margin: 0 0 20px 0; font-size: 1.8em; display: flex; align-items: center; gap: 10px; }
+    .detection { margin: 20px 0; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 4px solid #6366f1; transition: transform 0.2s; }
+    .detection:hover { transform: translateY(-2px); }
+    .confidence { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .high { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color: #dc2626; }
+    .medium { background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); color: #d97706; }
+    .low { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); color: #059669; }
+    .footer { margin-top: 40px; text-align: center; color: #64748b; font-size: 14px; padding: 30px; background: #f8fafc; border-radius: 15px; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 25px 0; }
+    .info-item { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .label { font-weight: 600; color: #475569; display: block; margin-bottom: 8px; }
+    .ai-badge { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>OPG X-Ray Analysis Report</h1>
-    <p>Generated on ${new Date().toLocaleString()}</p>
-  </div>
-
-  <div class="section">
-    <h2>Patient Information</h2>
-    <div class="info-grid">
-      <div class="info-item">
-        <span class="label">Patient Name:</span> ${userName || 'N/A'}
-      </div>
-      <div class="info-item">
-        <span class="label">Email:</span> ${user?.email}
-      </div>
-      <div class="info-item">
-        <span class="label">Analysis Date:</span> ${new Date(analysisResult.timestamp).toLocaleDateString()}
-      </div>
-      <div class="info-item">
-        <span class="label">Analysis Time:</span> ${new Date(analysisResult.timestamp).toLocaleTimeString()}
+  <div class="container">
+    <div class="header">
+      <h1>🦷 AI Dental Analysis Report</h1>
+      <p>Powered by Advanced Machine Learning Technology</p>
+      <div class="ai-badge">
+        🧠 Custom AI Model • Generated ${new Date().toLocaleString()}
       </div>
     </div>
-  </div>
 
-  <div class="section">
-    <h2>Detected Conditions (${analysisResult.detections.length})</h2>
-    ${analysisResult.detections.map(d => {
-      const severity = d.confidence > 0.8 ? 'high' : d.confidence > 0.6 ? 'medium' : 'low';
-      const severityText = d.confidence > 0.8 ? 'High Priority' : d.confidence > 0.6 ? 'Medium Priority' : 'Low Priority';
-      const action = d.confidence > 0.8 
-        ? 'Immediate attention required' 
-        : d.confidence > 0.6 
-        ? 'Schedule appointment soon'
-        : 'Monitor condition';
-      
-      return `
-      <div class="detection">
-        <h3>${d.label}</h3>
-        <p><strong>Confidence Score:</strong> ${(d.confidence * 100).toFixed(1)}%</p>
-        <p><strong>Severity:</strong> <span class="confidence ${severity}">${severityText}</span></p>
-        <p><strong>Recommended Action:</strong> ${action}</p>
-        <p><strong>Location:</strong> Coordinates (${d.bbox[0].toFixed(0)}, ${d.bbox[1].toFixed(0)})</p>
+    <div class="content">
+      <div class="section">
+        <h2>👤 Patient Information</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="label">Patient Name:</span>
+            <strong>${userName || 'N/A'}</strong>
+          </div>
+          <div class="info-item">
+            <span class="label">Email:</span>
+            <strong>${user?.email}</strong>
+          </div>
+          <div class="info-item">
+            <span class="label">Analysis Date:</span>
+            <strong>${new Date(analysisResult.timestamp).toLocaleDateString()}</strong>
+          </div>
+          <div class="info-item">
+            <span class="label">Analysis Time:</span>
+            <strong>${new Date(analysisResult.timestamp).toLocaleTimeString()}</strong>
+          </div>
+        </div>
       </div>
-      `;
-    }).join('')}
-  </div>
 
-  <div class="section">
-    <h2>Summary & Recommendations</h2>
-    <p>This automated analysis has detected ${analysisResult.detections.length} potential area(s) of concern in your OPG X-ray.</p>
-    <ul style="margin-top: 15px; padding-left: 20px;">
-      <li>Schedule a consultation with your dentist to discuss these findings</li>
-      <li>This is an AI-assisted analysis and should be verified by a qualified dental professional</li>
-      <li>Regular dental check-ups are recommended for optimal oral health</li>
-      <li>Maintain good oral hygiene practices</li>
-    </ul>
-  </div>
+      <div class="section">
+        <h2>🔍 AI Detection Results (${analysisResult.detections.length})</h2>
+        ${analysisResult.detections.map(d => {
+          const severity = d.confidence > 0.8 ? 'high' : d.confidence > 0.6 ? 'medium' : 'low';
+          const severityText = d.confidence > 0.8 ? 'High Priority' : d.confidence > 0.6 ? 'Medium Priority' : 'Low Priority';
+          const action = d.confidence > 0.8 
+            ? 'Immediate consultation recommended' 
+            : d.confidence > 0.6 
+            ? 'Schedule follow-up appointment'
+            : 'Monitor and track progress';
+          
+          return `
+          <div class="detection">
+            <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.3em;">${d.label}</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+              <div>
+                <strong>AI Confidence:</strong> ${(d.confidence * 100).toFixed(1)}%
+              </div>
+              <div>
+                <strong>Priority:</strong> <span class="confidence ${severity}">${severityText}</span>
+              </div>
+              <div>
+                <strong>Recommendation:</strong> ${action}
+              </div>
+              <div>
+                <strong>Location:</strong> Region (${d.bbox[0].toFixed(0)}, ${d.bbox[1].toFixed(0)})
+              </div>
+            </div>
+          </div>
+          `;
+        }).join('')}
+      </div>
 
-  <div class="footer">
-    <p>This report is generated by an AI system and is intended for informational purposes only.</p>
-    <p>It should not replace professional dental diagnosis and treatment.</p>
-    <p>&copy; ${new Date().getFullYear()} OPG Analysis System</p>
+      <div class="section">
+        <h2>📋 Summary & Next Steps</h2>
+        <p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 20px;">
+          Our advanced AI system has analyzed your dental X-ray and detected <strong>${analysisResult.detections.length}</strong> area(s) requiring attention.
+        </p>
+        <div style="background: white; padding: 20px; border-radius: 12px; margin: 20px 0;">
+          <h3 style="color: #4f46e5; margin: 0 0 15px 0;">Recommended Actions:</h3>
+          <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li>Schedule a consultation with your dental professional to review these findings</li>
+            <li>Bring this AI analysis report to your appointment for reference</li>
+            <li>Continue regular dental check-ups for optimal oral health monitoring</li>
+            <li>Maintain excellent oral hygiene practices daily</li>
+            <li>Consider preventive treatments as recommended by your dentist</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="ai-badge" style="margin-bottom: 15px;">
+          🤖 Powered by Custom Machine Learning Models
+        </div>
+        <p><strong>Important:</strong> This AI-generated analysis is for informational purposes and should not replace professional dental diagnosis.</p>
+        <p>Always consult with qualified dental professionals for treatment decisions.</p>
+        <p>&copy; ${new Date().getFullYear()} Advanced Dental AI Analysis System</p>
+      </div>
+    </div>
   </div>
 </body>
 </html>
@@ -332,7 +366,7 @@ function ImageUploadDashboard() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `OPG-Analysis-Report-${new Date().toISOString().split('T')[0]}.html`
+    a.download = `AI-Dental-Analysis-${new Date().toISOString().split('T')[0]}.html`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -344,34 +378,52 @@ function ImageUploadDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="max-w-7xl mx-auto p-4 md:p-8">
-        {/* Enhanced Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">
-                Welcome back, {userName || user?.email?.split('@')[0]}!
-              </h1>
-              <p className="text-gray-600">Your AI-powered dental health companion</p>
+    <main className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 relative overflow-hidden">
+      {/* Floating background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse delay-2000"></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-4 md:p-8 relative z-10">
+        {/* Enhanced Floating Header */}
+        <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mb-8 border border-white/20 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-purple-600/5 to-cyan-600/5"></div>
+          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Brain className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent">
+                    Welcome back, {userName || user?.email?.split('@')[0]}!
+                  </h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                    <p className="text-gray-600 font-medium">Your AI-powered dental health companion</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={() => router.push('/history')}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-all"
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300 font-medium"
               >
                 <History className="w-4 h-4" />
                 History
               </button>
               <button
                 onClick={() => router.push('/profile')}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-2xl hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300 font-medium"
               >
                 Profile
               </button>
               <button
                 onClick={handleSignOut}
-                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all"
+                className="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-2xl hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300 font-medium"
               >
                 Sign Out
               </button>
@@ -379,210 +431,268 @@ function ImageUploadDashboard() {
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* Floating Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="group backdrop-blur-sm bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl p-8 text-white shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 transition-all duration-300 border border-white/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm">Total Scans</p>
-                <p className="text-3xl font-bold mt-1">{stats.totalScans}</p>
+                <p className="text-blue-100 text-sm font-medium mb-1">Total Scans</p>
+                <p className="text-4xl font-bold">{stats.totalScans}</p>
+                <p className="text-blue-200 text-xs mt-2">All time</p>
               </div>
-              <FileImage className="w-10 h-10 text-blue-200" />
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all">
+                <FileImage className="w-8 h-8 text-blue-100" />
+              </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="group backdrop-blur-sm bg-gradient-to-br from-purple-500 to-purple-600 rounded-3xl p-8 text-white shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 transition-all duration-300 border border-white/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm">Recent Issues</p>
-                <p className="text-3xl font-bold mt-1">{stats.recentIssues}</p>
+                <p className="text-purple-100 text-sm font-medium mb-1">AI Detections</p>
+                <p className="text-4xl font-bold">{stats.recentIssues}</p>
+                <p className="text-purple-200 text-xs mt-2">Recent findings</p>
               </div>
-              <Activity className="w-10 h-10 text-purple-200" />
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all">
+                <Activity className="w-8 h-8 text-purple-100" />
+              </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="group backdrop-blur-sm bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl p-8 text-white shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 transition-all duration-300 border border-white/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-100 text-sm">Last Scan</p>
-                <p className="text-lg font-bold mt-1">
+                <p className="text-emerald-100 text-sm font-medium mb-1">Last Scan</p>
+                <p className="text-2xl font-bold">
                   {stats.lastScanDate 
-                    ? new Date(stats.lastScanDate).toLocaleDateString() 
-                    : 'No scans yet'}
+                    ? new Date(stats.lastScanDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    : 'None yet'}
                 </p>
+                <p className="text-emerald-200 text-xs mt-2">Most recent</p>
               </div>
-              <TrendingUp className="w-10 h-10 text-green-200" />
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all">
+                <TrendingUp className="w-8 h-8 text-emerald-100" />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Upload Section with Drag & Drop */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <Upload className="w-7 h-7 text-blue-600" />
-            Upload OPG X-ray
-          </h2>
-          
-          <div
-            className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all
-              ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
-              ${uploading || analyzing ? 'opacity-50 pointer-events-none' : ''}`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              disabled={uploading || analyzing}
-            />
+        {/* Enhanced Upload Section */}
+        <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mb-8 border border-white/20 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/50 to-purple-50/50"></div>
+          <div className="relative">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <Upload className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-indigo-800 bg-clip-text text-transparent">
+                  AI-Powered Analysis
+                </h2>
+                <p className="text-gray-600 font-medium">Upload your dental X-ray for instant AI analysis</p>
+              </div>
+            </div>
             
-            <FileImage className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-lg font-medium text-gray-700 mb-2">
-              Drop your X-ray image here or click to browse
-            </p>
-            <p className="text-sm text-gray-500">
-              Supports JPG, PNG, and other image formats
-            </p>
-          </div>
-
-          {(uploading || analyzing) && (
-            <div className="mt-6 bg-blue-50 rounded-lg p-4">
-              <div className="flex items-center space-x-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                <p className="text-blue-700 font-medium">
-                  {uploading ? "Uploading image..." : "Analyzing with AI model..."}
-                </p>
-              </div>
-              {analyzing && (
-                <div className="mt-3 w-full bg-blue-100 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+            <div
+              className={`relative border-3 border-dashed rounded-3xl p-16 text-center transition-all duration-300 group
+                ${dragActive 
+                  ? 'border-indigo-500 bg-indigo-50/50 scale-105' 
+                  : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30'
+                }
+                ${uploading || analyzing ? 'opacity-50 pointer-events-none' : 'hover:scale-105'}
+              `}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={uploading || analyzing}
+              />
+              
+              <div className="flex flex-col items-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center mb-6 shadow-xl group-hover:shadow-2xl transition-all duration-300">
+                  <FileImage className="w-10 h-10 text-white" />
                 </div>
-              )}
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">
+                  Drop your X-ray here or click to browse
+                </h3>
+                <p className="text-gray-600 mb-4 max-w-md">
+                  Our advanced custom machine learning model will analyze your dental images instantly
+                </p>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Shield className="w-4 h-4" />
+                  <span>Supports JPG, PNG, and other image formats • Secure & Private</span>
+                </div>
+              </div>
             </div>
-          )}
-          
-          {errorMsg && (
-            <div className="mt-6 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <p>{errorMsg}</p>
-            </div>
-          )}
+
+            {(uploading || analyzing) && (
+              <div className="mt-8 backdrop-blur-sm bg-indigo-50/80 rounded-2xl p-6 border border-indigo-200">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent"></div>
+                  <div>
+                    <p className="text-indigo-800 font-bold text-lg">
+                      {uploading ? "Uploading image..." : "AI analyzing your X-ray..."}
+                    </p>
+                    <p className="text-indigo-600 text-sm">
+                      {uploading ? "Securing your data" : "Custom ML model processing"}
+                    </p>
+                  </div>
+                </div>
+                {analyzing && (
+                  <div className="w-full bg-indigo-200 rounded-full h-3 overflow-hidden">
+                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 h-3 rounded-full animate-pulse transition-all duration-1000" style={{ width: '75%' }}></div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {errorMsg && (
+              <div className="mt-8 flex items-center gap-4 backdrop-blur-sm bg-red-50/80 border border-red-200 text-red-700 px-6 py-4 rounded-2xl">
+                <AlertCircle className="w-6 h-6 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">Analysis Error</p>
+                  <p className="text-sm">{errorMsg}</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Analysis Results */}
+        {/* Enhanced Analysis Results */}
         {analysisResult && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 animate-in">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold flex items-center gap-3">
-                <CheckCircle className="w-7 h-7 text-green-600" />
-                Analysis Complete
-              </h2>
-              <button
-                onClick={downloadReport}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transform hover:-translate-y-0.5 transition-all"
-              >
-                <Download className="w-5 h-5" />
-                Download Report
-              </button>
-            </div>
+          <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 border border-white/20 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-blue-50/50"></div>
+            <div className="relative">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+                    <CheckCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-green-800 bg-clip-text text-transparent">
+                      AI Analysis Complete
+                    </h2>
+                    <p className="text-gray-600 font-medium">Advanced custom model results</p>
+                  </div>
+                </div>
+                <button
+                  onClick={downloadReport}
+                  className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 font-bold"
+                >
+                  <Download className="w-5 h-5" />
+                  Download Report
+                </button>
+              </div>
 
-            {/* Side-by-side images */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                  Original Image
-                </h3>
-                <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-lg bg-gray-100">
-                  <Image
-                    src={analysisResult.originalImage}
-                    alt="Original OPG"
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                  />
+              {/* Enhanced Images Display */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-blue-600 rounded-full shadow-lg"></div>
+                    <h3 className="font-bold text-xl text-gray-800">Original Image</h3>
+                  </div>
+                  <div className="group relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-gray-100 to-gray-200 hover:shadow-2xl transition-all duration-300">
+                    <Image
+                      src={analysisResult.originalImage}
+                      alt="Original dental X-ray"
+                      fill
+                      className="object-contain group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-purple-600 rounded-full shadow-lg"></div>
+                    <h3 className="font-bold text-xl text-gray-800">AI Analysis Results</h3>
+                  </div>
+                  <div className="group relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-gray-100 to-gray-200 hover:shadow-2xl transition-all duration-300">
+                    <Image
+                      src={analysisResult.annotatedImage}
+                      alt="AI-analyzed dental X-ray"
+                      fill
+                      className="object-contain group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <span className="w-2 h-2 bg-purple-600 rounded-full"></span>
-                  AI Analysis
+              {/* Enhanced Detections Display */}
+              <div className="backdrop-blur-sm bg-gradient-to-br from-gray-50/80 to-white/80 rounded-2xl p-8 border border-gray-200/50">
+                <h3 className="font-bold text-2xl mb-6 flex items-center gap-3">
+                  <Brain className="w-6 h-6 text-purple-600" />
+                  AI Detection Results
                 </h3>
-                <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-lg bg-gray-100">
-                  <Image
-                    src={analysisResult.annotatedImage}
-                    alt="Annotated OPG"
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Enhanced Detections Table */}
-            <div className="bg-gray-50 rounded-xl p-6">
-              <h3 className="font-semibold text-lg mb-4">Detected Conditions</h3>
-              {analysisResult.detections.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <p className="text-green-700 font-medium">No issues detected!</p>
-                  <p className="text-gray-600 text-sm mt-1">Your X-ray appears to be normal</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {analysisResult.detections.map((detection, index) => (
-                    <div key={index} className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-all">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">{detection.label}</h4>
-                          <div className="mt-2 flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-600">Confidence:</span>
-                              <div className="flex items-center gap-2">
-                                <div className="w-32 bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className={`h-2 rounded-full transition-all ${
-                                      detection.confidence > 0.8 
-                                        ? 'bg-red-500' 
-                                        : detection.confidence > 0.6 
-                                        ? 'bg-yellow-500'
-                                        : 'bg-green-500'
-                                    }`}
-                                    style={{ width: `${detection.confidence * 100}%` }}
-                                  />
+                {analysisResult.detections.length === 0 ? (
+                  <div className="text-center py-12">
+                    <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-6" />
+                    <h4 className="text-2xl font-bold text-green-700 mb-2">Excellent News!</h4>
+                    <p className="text-green-600 text-lg font-medium">No dental issues detected by our AI</p>
+                    <p className="text-gray-600 text-sm mt-2">Your X-ray appears to show healthy dental structures</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {analysisResult.detections.map((detection, index) => (
+                      <div key={index} className="backdrop-blur-sm bg-white/80 rounded-2xl p-6 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 border border-white/50">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-xl text-gray-900 mb-2">{detection.label}</h4>
+                            <div className="flex items-center gap-6 flex-wrap">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-gray-600">AI Confidence:</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-32 bg-gray-200 rounded-full h-3 overflow-hidden">
+                                    <div
+                                      className={`h-3 rounded-full transition-all duration-1000 ${
+                                        detection.confidence > 0.8 
+                                          ? 'bg-gradient-to-r from-red-500 to-red-600' 
+                                          : detection.confidence > 0.6 
+                                          ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+                                          : 'bg-gradient-to-r from-green-500 to-emerald-500'
+                                      }`}
+                                      style={{ width: `${detection.confidence * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-lg font-bold">
+                                    {(detection.confidence * 100).toFixed(0)}%
+                                  </span>
                                 </div>
-                                <span className="text-sm font-bold">
-                                  {(detection.confidence * 100).toFixed(0)}%
-                                </span>
                               </div>
                             </div>
                           </div>
+                          <span className={`px-4 py-2 text-sm font-bold rounded-full shadow-lg ${
+                            detection.confidence > 0.8 
+                              ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-700' 
+                              : detection.confidence > 0.6 
+                              ? 'bg-gradient-to-r from-yellow-100 to-orange-200 text-orange-700'
+                              : 'bg-gradient-to-r from-green-100 to-emerald-200 text-emerald-700'
+                          }`}>
+                            {detection.confidence > 0.8 ? 'High Priority' : detection.confidence > 0.6 ? 'Medium Priority' : 'Low Priority'}
+                          </span>
                         </div>
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                          detection.confidence > 0.8 
-                            ? 'bg-red-100 text-red-700' 
-                            : detection.confidence > 0.6 
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {detection.confidence > 0.8 ? 'High Priority' : detection.confidence > 0.6 ? 'Medium' : 'Low'}
-                        </span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Analysis timestamp */}
-            <div className="mt-6 text-center text-sm text-gray-500">
-              Analysis completed at {new Date(analysisResult.timestamp).toLocaleString()}
+              {/* Enhanced Analysis timestamp */}
+              <div className="mt-8 text-center">
+                <div className="inline-flex items-center gap-2 px-6 py-3 backdrop-blur-sm bg-gray-50/80 text-gray-600 rounded-2xl border border-gray-200/50">
+                  <Sparkles className="w-4 h-4" />
+                  <span className="text-sm font-medium">
+                    Analysis completed at {new Date(analysisResult.timestamp).toLocaleString()}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}
