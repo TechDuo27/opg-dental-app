@@ -7,27 +7,83 @@ import torch
 import cv2
 import numpy as np
 import os
+import time
 
 # Add the ml directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from class_labels import CLASS_NAMES
 
+# Global model cache to avoid reloading for each request
+MODEL_CACHE = None
+LAST_WEIGHTS_PATH = None
+
+def load_model(weights_path, conf_threshold=0.25):
+    """
+    Load YOLOv5 model with caching
+    """
+    global MODEL_CACHE, LAST_WEIGHTS_PATH
+    
+    # If model is already loaded with the same weights, reuse it
+    if MODEL_CACHE is not None and LAST_WEIGHTS_PATH == str(weights_path):
+        print("Using cached model")
+        MODEL_CACHE.conf = conf_threshold
+        return MODEL_CACHE
+    
+    print(f"Loading model from {weights_path}")
+    start_time = time.time()
+    
+    # Suppress YOLOv5 logging
+    import logging
+    logging.getLogger('ultralytics').setLevel(logging.WARNING)
+    
+    # Load YOLOv5 model with caching
+    model = torch.hub.load('ultralytics/yolov5', 'custom', 
+                          path=str(weights_path), 
+                          force_reload=False,
+                          verbose=False)
+    model.conf = conf_threshold  # Set confidence threshold
+    
+    # Update cache
+    MODEL_CACHE = model
+    LAST_WEIGHTS_PATH = str(weights_path)
+    
+    load_time = time.time() - start_time
+    print(f"Model loaded in {load_time:.2f} seconds")
+    
+    return model
+
+def resize_if_needed(image, max_size=1280):
+    """
+    Resize image if it's too large while maintaining aspect ratio
+    """
+    height, width = image.shape[:2]
+    
+    # If image is already small enough, return as is
+    if height <= max_size and width <= max_size:
+        return image, 1.0
+    
+    # Calculate scale factor
+    scale = min(max_size / height, max_size / width)
+    new_height = int(height * scale)
+    new_width = int(width * scale)
+    
+    # Resize image
+    resized = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    
+    print(f"Resized image from {width}x{height} to {new_width}x{new_height}")
+    return resized, scale
+
 def run_inference(input_path, output_path, weights_path, conf_threshold=0.25):
     """
     Run YOLOv5 inference on OPG image
     """
     try:
-        # Suppress YOLOv5 logging
-        import logging
-        logging.getLogger('ultralytics').setLevel(logging.WARNING)
+        print(f"Starting inference on {input_path}")
+        start_time = time.time()
         
-        # Load YOLOv5 model
-        model = torch.hub.load('ultralytics/yolov5', 'custom', 
-                              path=str(weights_path), 
-                              force_reload=False,
-                              verbose=False)
-        model.conf = conf_threshold  # Set confidence threshold
+        # Load model (using cache if possible)
+        model = load_model(weights_path, conf_threshold)
         
         # Load image
         image = cv2.imread(str(input_path))
@@ -36,15 +92,28 @@ def run_inference(input_path, output_path, weights_path, conf_threshold=0.25):
         
         # Get original dimensions
         orig_height, orig_width = image.shape[:2]
+        print(f"Original image size: {orig_width}x{orig_height}")
+        
+        # Resize image if needed to speed up inference
+        resized_image, scale_factor = resize_if_needed(image)
         
         # Run inference
-        results = model(image)
+        print("Running inference...")
+        inference_start = time.time()
+        results = model(resized_image)
+        inference_time = time.time() - inference_start
+        print(f"Inference completed in {inference_time:.2f} seconds")
         
         # Process results
         detections = []
         
         # Get predictions as pandas dataframe
         predictions = results.pandas().xyxy[0]
+        
+        # If we resized the image, scale the bounding boxes back to original size
+        if scale_factor != 1.0:
+            for col in ['xmin', 'xmax', 'ymin', 'ymax']:
+                predictions[col] = predictions[col] / scale_factor
         
         for idx, row in predictions.iterrows():
             # Extract detection information
@@ -89,6 +158,7 @@ def run_inference(input_path, output_path, weights_path, conf_threshold=0.25):
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
         
         # Save annotated image
+        print(f"Saving annotated image to {output_path}")
         cv2.imwrite(str(output_path), annotated_image)
         
         # Verify output was created
@@ -101,6 +171,9 @@ def run_inference(input_path, output_path, weights_path, conf_threshold=0.25):
             'image_shape': [orig_height, orig_width, 3],
             'num_detections': len(detections)
         }
+        
+        total_time = time.time() - start_time
+        print(f"Total processing time: {total_time:.2f} seconds")
         
         # Print JSON to stdout for the Node.js process to capture
         print(json.dumps(output))

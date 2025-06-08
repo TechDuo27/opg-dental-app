@@ -62,6 +62,16 @@ export async function POST(request: NextRequest) {
     const pythonScript = path.join(process.cwd(), 'ml', 'inference.py')
     const weightsPath = path.join(process.cwd(), 'ml', 'best.pt')
     
+    // Check if files exist
+    try {
+      await fs.access(pythonScript)
+      await fs.access(weightsPath)
+      console.log('3a. Verified Python script and model weights exist')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      throw new Error(`Required files not found: ${errorMessage}`)
+    }
+    
     // Use python.exe explicitly on Windows
     const pythonCmd = process.platform === 'win32' ? 'python.exe' : 'python'
     const args = [
@@ -72,6 +82,10 @@ export async function POST(request: NextRequest) {
     ]
     
     console.log('4. Running command:', pythonCmd, args.join(' '))
+    
+    // Log start time for performance tracking
+    const startTime = Date.now()
+    console.log('4a. Starting Python process at:', new Date().toISOString())
     
     // Run Python script
     const pythonProcess = spawn(pythonCmd, args, {
@@ -94,9 +108,15 @@ export async function POST(request: NextRequest) {
       stderrData += chunk
       console.log('Python stderr:', chunk)
     })
+    
+    // Log when process exits
+    pythonProcess.on('exit', (code) => {
+      const duration = Date.now() - startTime
+      console.log(`Python process exited with code ${code} after ${duration}ms`)
+    })
 
     // Wait for completion with timeout
-    const timeout = 30000 // 30 seconds
+    const timeout = 120000 // 120 seconds (2 minutes)
     const exitCode = await Promise.race([
       new Promise<number>((resolve, reject) => {
         pythonProcess.on('close', (code) => {
