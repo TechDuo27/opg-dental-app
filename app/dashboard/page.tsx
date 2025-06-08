@@ -246,10 +246,10 @@ function ImageUploadDashboard() {
           }
         }
 
-      } catch (fetchError) {
+      } catch (fetchError: unknown) {
         clearTimeout(timeoutId)
         
-        if (fetchError.name === 'AbortError') {
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           throw new Error('Analysis timed out. Please try with a smaller image or check your internet connection.')
         }
         
