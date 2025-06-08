@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AuthWrapper from "@/components/AuthWrapper"
-import { ArrowLeft, User, Mail, Calendar, Activity, Save, Camera, MapPin } from "lucide-react"
+import { ArrowLeft, User, Mail, Calendar, Activity, Save, Camera, MapPin, Download } from "lucide-react"
 
 interface UserProfile {
   id: string
@@ -102,6 +102,16 @@ function ProfileContent() {
     }
   }
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
   const handleDownloadAllScans = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -121,93 +131,195 @@ function ProfileContent() {
         return
       }
 
-      // Create HTML report
       const reportHTML = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Complete OPG Analysis History - ${new Date().toLocaleDateString()}</title>
+  <title>Complete Dental Analysis Report - ${new Date().toLocaleDateString()}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #333; line-height: 1.6; }
-    .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #2563eb; padding-bottom: 20px; }
-    .header h1 { color: #2563eb; margin-bottom: 10px; }
-    .patient-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-    .scan-entry { margin-bottom: 40px; page-break-inside: avoid; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; }
-    .scan-header { background: #2563eb; color: white; padding: 10px 20px; margin: -20px -20px 20px -20px; border-radius: 8px 8px 0 0; }
-    .detection { margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 5px; }
-    .high { border-left: 4px solid #dc2626; }
-    .medium { border-left: 4px solid #d97706; }
-    .low { border-left: 4px solid #059669; }
-    .summary { background: #e8f4f8; padding: 20px; border-radius: 8px; margin-top: 30px; }
-    .footer { text-align: center; margin-top: 40px; color: #666; font-size: 12px; }
-    @media print { .scan-entry { page-break-inside: avoid; } }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #333; }
+    .container { max-width: 1000px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 40px; text-align: center; }
+    .header h1 { margin: 0 0 10px 0; font-size: 2.5em; font-weight: 700; }
+    .header p { margin: 0; opacity: 0.9; font-size: 1.1em; }
+    .content { padding: 40px; }
+    .section { margin: 30px 0; padding: 25px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 15px; border-left: 5px solid #4f46e5; }
+    .section h2 { color: #1e293b; margin: 0 0 20px 0; font-size: 1.8em; display: flex; align-items: center; gap: 10px; }
+    .scan-item { margin: 40px 0; padding: 30px; background: white; border-radius: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); border-left: 6px solid #6366f1; }
+    .scan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
+    .scan-date { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .detection { margin: 15px 0; padding: 15px; background: #f8fafc; border-radius: 10px; border-left: 4px solid #6366f1; }
+    .confidence { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .high { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color: #dc2626; }
+    .medium { background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); color: #d97706; }
+    .low { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); color: #059669; }
+    .footer { margin-top: 40px; text-align: center; color: #64748b; font-size: 14px; padding: 30px; background: #f8fafc; border-radius: 15px; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 25px 0; }
+    .info-item { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .label { font-weight: 600; color: #475569; display: block; margin-bottom: 8px; }
+    .ai-badge { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .image-section { margin: 25px 0; }
+    .summary-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin: 25px 0; }
+    .stat-item { background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .stat-number { font-size: 2em; font-weight: bold; color: #4f46e5; margin-bottom: 5px; }
+    .stat-label { color: #6b7280; font-size: 0.9em; }
+    .no-issues { text-align: center; padding: 30px; background: #f0fdf4; border-radius: 10px; }
+    .no-issues-icon { font-size: 40px; margin-bottom: 10px; }
+    @media (max-width: 768px) { 
+      .info-grid { grid-template-columns: 1fr; }
+      .summary-stats { grid-template-columns: 1fr; }
+      .scan-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Complete OPG Analysis History</h1>
-    <p>Generated on ${new Date().toLocaleString()}</p>
-  </div>
-
-  <div class="patient-info">
-    <h2>Patient Information</h2>
-    <p><strong>Name:</strong> ${profile?.name || 'N/A'}</p>
-    <p><strong>Email:</strong> ${email}</p>
-    <p><strong>Total Scans:</strong> ${history.length}</p>
-    <p><strong>Period:</strong> ${history[history.length-1] ? new Date(history[history.length-1].created_at).toLocaleDateString() : 'N/A'} 
-       to ${history[0] ? new Date(history[0].created_at).toLocaleDateString() : 'N/A'}</p>
-  </div>
-
-  ${history.map((scan, index) => `
-    <div class="scan-entry">
-      <div class="scan-header">
-        <h3>Scan #${history.length - index} - ${new Date(scan.created_at).toLocaleString()}</h3>
+  <div class="container">
+    <div class="header">
+      <h1>🦷 Complete Dental Analysis Report</h1>
+      <p>Comprehensive AI Analysis History</p>
+      <div class="ai-badge">
+        🧠 Custom AI Model • Generated ${new Date().toLocaleString()}
       </div>
-      
-      <p><strong>Total Conditions Detected:</strong> ${scan.total_detections || 0}</p>
-      
-      ${scan.detections && scan.detections.length > 0 ? `
-        <h4>Detected Conditions:</h4>
-        ${scan.detections.map((d: any) => `
-          <div class="detection ${
-            d.confidence > 0.8 ? 'high' : d.confidence > 0.6 ? 'medium' : 'low'
-          }">
-            <strong>${d.label}</strong> - Confidence: ${(d.confidence * 100).toFixed(1)}%
-            ${d.confidence > 0.8 ? ' (High Priority)' : d.confidence > 0.6 ? ' (Medium Priority)' : ' (Low Priority)'}
-          </div>
-        `).join('')}
-      ` : '<p>No conditions detected in this scan.</p>'}
     </div>
-  `).join('')}
 
-  <div class="summary">
-    <h2>Summary Statistics</h2>
-    <p><strong>Total Scans Performed:</strong> ${history.length}</p>
-    <p><strong>Total Issues Detected:</strong> ${history.reduce((acc, scan) => acc + (scan.total_detections || 0), 0)}</p>
-    <p><strong>Average Issues per Scan:</strong> ${(history.reduce((acc, scan) => acc + (scan.total_detections || 0), 0) / history.length).toFixed(1)}</p>
-  </div>
+    <div class="content">
+      <div class="section">
+        <h2>👤 Patient Information</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="label">Patient Name:</span>
+            <strong>${formData.name || 'N/A'}</strong>
+          </div>
+          <div class="info-item">
+            <span class="label">Email:</span>
+            <strong>${email}</strong>
+          </div>
+          <div class="info-item">
+            <span class="label">Report Date:</span>
+            <strong>${new Date().toLocaleDateString()}</strong>
+          </div>
+          <div class="info-item">
+            <span class="label">Total Scans:</span>
+            <strong>${history.length}</strong>
+          </div>
+        </div>
+      </div>
 
-  <div class="footer">
-    <p>This report is generated by OPG Analysis AI System</p>
-    <p>For medical decisions, please consult with a qualified dental professional</p>
+      <div class="section">
+        <h2>📊 Analysis Summary</h2>
+        <div class="summary-stats">
+          <div class="stat-item">
+            <div class="stat-number">${history.length}</div>
+            <div class="stat-label">Total Scans</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">${history.reduce((acc, scan) => acc + (scan.total_detections || 0), 0)}</div>
+            <div class="stat-label">Total Detections</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">${history.filter(scan => (scan.total_detections || 0) > 0).length}</div>
+            <div class="stat-label">Scans with Issues</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">${history.filter(scan => (scan.total_detections || 0) === 0).length}</div>
+            <div class="stat-label">Clean Scans</div>
+          </div>
+        </div>
+        <div style="background: #eff6ff; padding: 15px; border-radius: 10px; margin-top: 20px; border-left: 4px solid #3b82f6;">
+          <p style="margin: 0; color: #1e40af; font-size: 0.9em;"><strong>Understanding Confidence Scores:</strong> The confidence percentage indicates how certain our AI model is about each detection, with higher percentages representing greater certainty in the finding.</p>
+        </div>
+      </div>
+
+      ${history.map((scan, index) => `
+        <div class="scan-item">
+          <div class="scan-header">
+            <h3 style="margin: 0; color: #1e293b; font-size: 1.4em;">Scan #${index + 1}</h3>
+            <div class="scan-date">${formatDate(scan.created_at)}</div>
+          </div>
+
+          ${scan.annotated_image_url ? `
+            <div class="image-section">
+              <div style="text-align: center; margin: 20px 0;">
+                <h4 style="margin-bottom: 15px; color: #1e293b; font-size: 1.2em;">AI Analysis Results</h4>
+                <img src="${scan.annotated_image_url}" alt="AI Analysis ${index + 1}" style="max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); max-height: 400px; object-fit: contain;" onerror="this.style.display='none'" />
+              </div>
+            </div>
+          ` : ''}
+
+          <div style="margin-top: 20px;">
+            <h4 style="color: #1e293b; margin-bottom: 15px;">🔍 AI Detections (${(scan.detections || []).length})</h4>
+            ${(scan.detections || []).length === 0 ? `
+              <div class="no-issues">
+                <div class="no-issues-icon">✅</div>
+                <p style="color: #059669; font-weight: 600; margin: 0;">No issues detected in this scan</p>
+              </div>
+            ` : (scan.detections || []).map(detection => {
+              const severity = detection.confidence > 0.8 ? 'high' : detection.confidence > 0.6 ? 'medium' : 'low';
+              const severityText = detection.confidence > 0.8 ? 'High Priority' : detection.confidence > 0.6 ? 'Medium Priority' : 'Low Priority';
+              const action = detection.confidence > 0.8 
+                ? 'Immediate consultation recommended' 
+                : detection.confidence > 0.6 
+                ? 'Schedule follow-up appointment'
+                : 'Monitor and track progress';
+              
+              return `
+                <div class="detection">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                      <h5 style="margin: 0 0 8px 0; color: #1e293b; font-size: 1.1em;">${detection.label}</h5>
+                      <p style="margin: 0 0 5px 0; color: #6b7280;">AI Confidence: ${(detection.confidence * 100).toFixed(1)}%</p>
+                      <p style="margin: 0; color: #6b7280; font-size: 0.9em;"><strong>Recommendation:</strong> ${action}</p>
+                    </div>
+                    <span class="confidence ${severity}">${severityText}</span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('')}
+
+      <div class="section">
+        <h2>📋 Overall Recommendations</h2>
+        <div style="background: white; padding: 25px; border-radius: 12px; margin: 20px 0;">
+          <h3 style="color: #4f46e5; margin: 0 0 20px 0;">Based on your complete analysis history:</h3>
+          <ul style="margin: 0; padding-left: 25px; line-height: 2;">
+            <li>Schedule regular consultations with your dental professional</li>
+            <li>Share this comprehensive report with your dentist for thorough review</li>
+            <li>Continue monitoring your dental health with periodic AI scans</li>
+            <li>Maintain excellent oral hygiene practices consistently</li>
+            ${history.some(scan => scan.detections?.some(d => d.confidence > 0.8)) ? '<li><strong>Follow up on high-priority detections immediately</strong></li>' : ''}
+            <li>Consider this data for long-term dental health planning</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="ai-badge" style="margin-bottom: 15px;">
+          🤖 Powered by Custom Machine Learning Models
+        </div>
+        <p><strong>Important:</strong> This comprehensive AI analysis report is for informational purposes and should not replace professional dental diagnosis.</p>
+        <p>Always consult with qualified dental professionals for treatment decisions and health planning.</p>
+        <p>&copy; ${new Date().getFullYear()} Advanced Dental AI Analysis System</p>
+      </div>
+    </div>
   </div>
 </body>
 </html>
       `
 
-      // Download as HTML
       const blob = new Blob([reportHTML], { type: 'text/html' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `OPG-Analysis-Complete-History-${new Date().toISOString().split('T')[0]}.html`
+      a.download = `Complete-Dental-Analysis-Report-${new Date().toISOString().split('T')[0]}.html`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Error downloading scans:', error)
-      alert('Failed to download scans')
+      alert('Failed to download scans. Please try again.')
     }
   }
 
@@ -223,17 +335,19 @@ function ProfileContent() {
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="flex items-center gap-4">
+        <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mb-8 border border-white/20">
+          <div className="flex items-center gap-6">
             <button
               onClick={() => router.push('/dashboard')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition"
+              className="p-3 hover:bg-white/50 rounded-2xl transition-all duration-300 transform hover:-translate-x-1"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Profile Settings</h1>
-              <p className="text-gray-600 mt-1">Manage your account information</p>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent">
+                Profile Settings
+              </h1>
+              <p className="text-gray-600 mt-2 font-medium">Manage your account information and preferences</p>
             </div>
           </div>
         </div>
@@ -241,28 +355,28 @@ function ProfileContent() {
         <div className="grid md:grid-cols-3 gap-8">
           {/* Profile Card */}
           <div className="md:col-span-1">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 border border-white/20">
               <div className="text-center">
-                <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <User className="w-12 h-12 text-white" />
+                <div className="w-28 h-28 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-full mx-auto mb-6 flex items-center justify-center shadow-xl">
+                  <User className="w-14 h-14 text-white" />
                 </div>
-                <h2 className="text-xl font-semibold">{formData.name}</h2>
-                <p className="text-gray-600">{email}</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{formData.name}</h2>
+                <p className="text-gray-600 font-medium">{email}</p>
                 
-                <div className="mt-6 space-y-3 text-left">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-600">
+                <div className="mt-8 space-y-4 text-left">
+                  <div className="flex items-center gap-4 text-sm backdrop-blur-sm bg-gray-50/50 rounded-2xl p-3">
+                    <Calendar className="w-5 h-5 text-indigo-600" />
+                    <span className="text-gray-700 font-medium">
                       Joined {profile ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Activity className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-600">{formData.age} years old</span>
+                  <div className="flex items-center gap-4 text-sm backdrop-blur-sm bg-gray-50/50 rounded-2xl p-3">
+                    <Activity className="w-5 h-5 text-purple-600" />
+                    <span className="text-gray-700 font-medium">{formData.age} years old</span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-600">
+                  <div className="flex items-center gap-4 text-sm backdrop-blur-sm bg-gray-50/50 rounded-2xl p-3">
+                    <MapPin className="w-5 h-5 text-green-600" />
+                    <span className="text-gray-700 font-medium">
                       {formData.area && formData.state ? `${formData.area}, ${formData.state}` : 'Location not set'}
                     </span>
                   </div>
@@ -273,8 +387,8 @@ function ProfileContent() {
 
           {/* Edit Form */}
           <div className="md:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg p-8">
-              <h3 className="text-xl font-semibold mb-6">Personal Information</h3>
+            <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 border border-white/20">
+              <h3 className="text-2xl font-bold mb-8 text-gray-900">Personal Information</h3>
               
               <form className="space-y-6" onSubmit={(e) => { 
                 e.preventDefault(); 
@@ -282,33 +396,33 @@ function ProfileContent() {
               }}>
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Full Name
                     </label>
                     <input
                       type="text"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Email Address
                     </label>
                     <input
                       type="email"
                       disabled
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl bg-gray-50 cursor-not-allowed"
                       value={email}
                     />
-                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                    <p className="text-xs text-gray-500 mt-2">Email cannot be changed</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Age
                     </label>
                     <input
@@ -316,19 +430,19 @@ function ProfileContent() {
                       min="1"
                       max="120"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                       value={formData.age}
                       onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Biological Sex
                     </label>
                     <select
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                       value={formData.sex}
                       onChange={(e) => setFormData({ ...formData, sex: e.target.value })}
                     >
@@ -340,13 +454,13 @@ function ProfileContent() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Country
                     </label>
                     <input
                       type="text"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                       placeholder="e.g., India"
                       value={formData.country}
                       onChange={(e) => setFormData({ ...formData, country: e.target.value })}
@@ -354,13 +468,13 @@ function ProfileContent() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       State/Province
                     </label>
                     <input
                       type="text"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                       placeholder="e.g., Karnataka"
                       value={formData.state}
                       onChange={(e) => setFormData({ ...formData, state: e.target.value })}
@@ -368,13 +482,13 @@ function ProfileContent() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       City/Area
                     </label>
                     <input
                       type="text"
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                       placeholder="e.g., Bengaluru"
                       value={formData.area}
                       onChange={(e) => setFormData({ ...formData, area: e.target.value })}
@@ -382,11 +496,11 @@ function ProfileContent() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
                       Smoking Status
                     </label>
                     <select
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                       value={formData.smoking_status}
                       onChange={(e) => setFormData({ ...formData, smoking_status: e.target.value })}
                     >
@@ -398,11 +512,11 @@ function ProfileContent() {
                   </div>
                 </div>
 
-                <div className="pt-6 flex justify-end">
+                <div className="pt-8 flex justify-end">
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     <Save className="w-5 h-5" />
                     {saving ? 'Saving...' : 'Save Changes'}
@@ -412,19 +526,21 @@ function ProfileContent() {
             </div>
 
             {/* Additional Settings */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 mt-8">
-              <h3 className="text-xl font-semibold mb-6">Privacy & Security</h3>
+            <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mt-8 border border-white/20">
+              <h3 className="text-2xl font-bold mb-8 text-gray-900">Privacy & Security</h3>
               
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-6 backdrop-blur-sm bg-gradient-to-r from-blue-50/50 to-purple-50/50 rounded-2xl border border-blue-200/30">
                   <div>
-                    <h4 className="font-medium">Download All Scans</h4>
-                    <p className="text-sm text-gray-600">Get a copy of all your X-ray analyses</p>
+                    <h4 className="font-bold text-lg text-gray-900 mb-2">Download Complete Analysis Report</h4>
+                    <p className="text-gray-600">Get a comprehensive report of all your X-ray analyses with AI insights</p>
                   </div>
                   <button 
                     onClick={handleDownloadAllScans}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
-                    Download
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 font-semibold"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download Report
                   </button>
                 </div>
               </div>

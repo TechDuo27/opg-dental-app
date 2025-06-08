@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation"
 type Detection = {
   label: string
   confidence: number
-  bbox: [number, number, number, number] // [x, y, width, height]
+  bbox: [number, number, number, number]
 }
 
 type AnalysisResult = {
@@ -177,60 +177,104 @@ function ImageUploadDashboard() {
       formData.append('imageUrl', imageUrl)
       formData.append('userId', user?.id || '')
 
-      const response = await fetch('/api/analyze-opg', {
-        method: 'POST',
-        body: formData
-      })
+      // Increased timeout for ML processing
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minutes timeout
 
-      console.log('Response status:', response.status)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Analysis failed: ${response.status} ${errorText}`)
-      }
-
-      const data = await response.json()
-
-      if (data.error) {
-        throw new Error(data.error)
-      }
-
-      const result: AnalysisResult = {
-        originalImage: imageUrl,
-        annotatedImage: data.annotatedImage,
-        detections: data.detections,
-        timestamp: new Date().toISOString()
-      }
-
-      setAnalysisResult(result)
-      setAnalyzing(false)
-
-      if (!savingHistory && data.detections) {
-        setSavingHistory(true)
-        try {
-          const { error: historyError } = await supabase
-            .from('analysis_history')
-            .insert({
-              user_id: user?.id,
-              original_image_url: imageUrl,
-              annotated_image_url: imageUrl,
-              detections: data.detections,
-              total_detections: data.detections.length
-            })
-
-          if (!historyError) {
-            fetchUserStats()
+      try {
+        const response = await fetch('/api/analyze-opg', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json'
           }
-        } catch (historyError) {
-          console.error('History save error:', historyError)
-        } finally {
-          setSavingHistory(false)
+        })
+
+        clearTimeout(timeoutId)
+        console.log('Response status:', response.status)
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('Analysis response error:', errorText)
+          
+          // Handle specific timeout errors
+          if (response.status === 500 && errorText.includes('timed out')) {
+            throw new Error('Analysis is taking longer than expected. This may be due to image size or server load. Please try with a smaller image or retry in a few minutes.')
+          }
+          
+          throw new Error(`Analysis failed: ${response.status} - ${errorText}`)
         }
+
+        const data = await response.json()
+
+        if (data.error) {
+          throw new Error(data.error)
+        }
+
+        const result: AnalysisResult = {
+          originalImage: imageUrl,
+          annotatedImage: data.annotatedImage || imageUrl, // Fallback to original if no annotated image
+          detections: data.detections || [],
+          timestamp: new Date().toISOString()
+        }
+
+        setAnalysisResult(result)
+        setAnalyzing(false)
+
+        // Save to analysis history
+        if (!savingHistory && data.detections) {
+          setSavingHistory(true)
+          try {
+            const { error: historyError } = await supabase
+              .from('analysis_history')
+              .insert({
+                user_id: user?.id,
+                original_image_url: imageUrl,
+                annotated_image_url: data.annotatedImage || imageUrl,
+                detections: data.detections,
+                total_detections: data.detections.length
+              })
+
+            if (!historyError) {
+              fetchUserStats()
+            }
+          } catch (historyError) {
+            console.error('History save error:', historyError)
+          } finally {
+            setSavingHistory(false)
+          }
+        }
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId)
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Analysis timed out. Please try with a smaller image or check your internet connection.')
+        }
+        
+        throw fetchError
       }
 
     } catch (error) {
       console.error('ML analysis error:', error)
-      setErrorMsg(`Failed to analyze image: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to analyze image: '
+      
+      if (error instanceof Error) {
+        if (error.message.includes('timed out') || error.message.includes('timeout')) {
+          errorMessage += 'The analysis is taking too long. This usually happens with large images. Please try:\n\n• Using a smaller image file (under 5MB)\n• Compressing your image before upload\n• Retrying in a few minutes when server load is lower'
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage += 'Network connection issue. Please check your internet connection and try again.'
+        } else {
+          errorMessage += error.message
+        }
+      } else {
+        errorMessage += 'Unknown error occurred. Please try again.'
+      }
+      
+      setErrorMsg(errorMessage)
       setAnalyzing(false)
     }
   }
@@ -263,6 +307,10 @@ function ImageUploadDashboard() {
     .info-item { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
     .label { font-weight: 600; color: #475569; display: block; margin-bottom: 8px; }
     .ai-badge { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .image-section { margin: 30px 0; }
+    @media (max-width: 768px) { 
+      .info-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -298,9 +346,27 @@ function ImageUploadDashboard() {
         </div>
       </div>
 
+      <div class="image-section">
+        <div class="section">
+          <h2>📸 AI Analysis Results</h2>
+          <div style="text-align: center; margin: 20px 0;">
+            <img src="${analysisResult.annotatedImage}" alt="AI Annotated X-Ray" style="max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.1);" />
+          </div>
+        </div>
+      </div>
+
       <div class="section">
         <h2>🔍 AI Detection Results (${analysisResult.detections.length})</h2>
-        ${analysisResult.detections.map(d => {
+        <div style="background: #eff6ff; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+          <p style="margin: 0; color: #1e40af; font-size: 0.9em;"><strong>Understanding Confidence Scores:</strong> The confidence percentage indicates how certain our AI model is about each detection, with higher percentages representing greater certainty in the finding.</p>
+        </div>
+        ${analysisResult.detections.length === 0 ? `
+          <div style="text-align: center; padding: 40px;">
+            <div style="font-size: 60px; margin-bottom: 20px;">✅</div>
+            <h3 style="color: #059669; margin-bottom: 10px;">Excellent News!</h3>
+            <p style="color: #6b7280;">No dental issues detected by our AI analysis</p>
+          </div>
+        ` : analysisResult.detections.map(d => {
           const severity = d.confidence > 0.8 ? 'high' : d.confidence > 0.6 ? 'medium' : 'low';
           const severityText = d.confidence > 0.8 ? 'High Priority' : d.confidence > 0.6 ? 'Medium Priority' : 'Low Priority';
           const action = d.confidence > 0.8 
@@ -321,9 +387,6 @@ function ImageUploadDashboard() {
               </div>
               <div>
                 <strong>Recommendation:</strong> ${action}
-              </div>
-              <div>
-                <strong>Location:</strong> Region (${d.bbox[0].toFixed(0)}, ${d.bbox[1].toFixed(0)})
               </div>
             </div>
           </div>
@@ -383,27 +446,23 @@ function ImageUploadDashboard() {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse delay-2000"></div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-4 md:p-8 relative z-10">
-        {/* Enhanced Floating Header */}
-        <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mb-8 border border-white/20 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-purple-600/5 to-cyan-600/5"></div>
-          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Brain className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent">
-                    Welcome back, {userName || user?.email?.split('@')[0]}!
-                  </h1>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Sparkles className="w-4 h-4 text-purple-600" />
-                    <p className="text-gray-600 font-medium">Your AI-powered dental health companion</p>
-                  </div>
+      <div className="max-w-7xl mx-auto p-8 relative z-10">
+        {/* Enhanced Header */}
+        <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mb-8 border border-white/20">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-purple-800 bg-clip-text text-transparent">
+                  Welcome back, {userName || user?.email?.split('@')[0]}!
+                </h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <p className="text-gray-600 font-medium">Your AI-powered dental companion</p>
                 </div>
               </div>
             </div>
@@ -431,268 +490,186 @@ function ImageUploadDashboard() {
           </div>
         </div>
 
-        {/* Floating Stats Cards */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="group backdrop-blur-sm bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl p-8 text-white shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 transition-all duration-300 border border-white/20">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl p-8 text-white shadow-2xl transform hover:-translate-y-2 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm font-medium mb-1">Total Scans</p>
+                <p className="text-blue-100 text-sm font-medium">Total Scans</p>
                 <p className="text-4xl font-bold">{stats.totalScans}</p>
-                <p className="text-blue-200 text-xs mt-2">All time</p>
               </div>
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all">
-                <FileImage className="w-8 h-8 text-blue-100" />
-              </div>
+              <FileImage className="w-12 h-12 text-blue-200" />
             </div>
           </div>
-
-          <div className="group backdrop-blur-sm bg-gradient-to-br from-purple-500 to-purple-600 rounded-3xl p-8 text-white shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 transition-all duration-300 border border-white/20">
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-3xl p-8 text-white shadow-2xl transform hover:-translate-y-2 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm font-medium mb-1">AI Detections</p>
+                <p className="text-purple-100 text-sm font-medium">AI Detections</p>
                 <p className="text-4xl font-bold">{stats.recentIssues}</p>
-                <p className="text-purple-200 text-xs mt-2">Recent findings</p>
               </div>
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all">
-                <Activity className="w-8 h-8 text-purple-100" />
-              </div>
+              <Activity className="w-12 h-12 text-purple-200" />
             </div>
           </div>
-
-          <div className="group backdrop-blur-sm bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl p-8 text-white shadow-2xl hover:shadow-3xl transform hover:-translate-y-2 transition-all duration-300 border border-white/20">
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl p-8 text-white shadow-2xl transform hover:-translate-y-2 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 text-sm font-medium mb-1">Last Scan</p>
-                <p className="text-2xl font-bold">
+                <p className="text-emerald-100 text-sm font-medium">Last Scan</p>
+                <p className="text-xl font-bold">
                   {stats.lastScanDate 
-                    ? new Date(stats.lastScanDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    ? new Date(stats.lastScanDate).toLocaleDateString()
                     : 'None yet'}
                 </p>
-                <p className="text-emerald-200 text-xs mt-2">Most recent</p>
               </div>
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center group-hover:bg-white/30 transition-all">
-                <TrendingUp className="w-8 h-8 text-emerald-100" />
-              </div>
+              <TrendingUp className="w-12 h-12 text-emerald-200" />
             </div>
           </div>
         </div>
 
-        {/* Enhanced Upload Section */}
-        <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mb-8 border border-white/20 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/50 to-purple-50/50"></div>
-          <div className="relative">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Upload className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-indigo-800 bg-clip-text text-transparent">
-                  AI-Powered Analysis
-                </h2>
-                <p className="text-gray-600 font-medium">Upload your dental X-ray for instant AI analysis</p>
-              </div>
+        {/* Upload Section */}
+        <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 mb-8">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center">
+              <Upload className="w-6 h-6 text-white" />
             </div>
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900">AI-Powered Analysis</h2>
+              <p className="text-gray-600">Upload for instant custom ML analysis</p>
+            </div>
+          </div>
+          
+          <div
+            className={`border-3 border-dashed rounded-3xl p-16 text-center transition-all ${
+              dragActive ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-indigo-400'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              disabled={uploading || analyzing}
+            />
             
-            <div
-              className={`relative border-3 border-dashed rounded-3xl p-16 text-center transition-all duration-300 group
-                ${dragActive 
-                  ? 'border-indigo-500 bg-indigo-50/50 scale-105' 
-                  : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30'
-                }
-                ${uploading || analyzing ? 'opacity-50 pointer-events-none' : 'hover:scale-105'}
-              `}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                disabled={uploading || analyzing}
-              />
-              
-              <div className="flex flex-col items-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center mb-6 shadow-xl group-hover:shadow-2xl transition-all duration-300">
-                  <FileImage className="w-10 h-10 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-3">
-                  Drop your X-ray here or click to browse
-                </h3>
-                <p className="text-gray-600 mb-4 max-w-md">
-                  Our advanced custom machine learning model will analyze your dental images instantly
-                </p>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Shield className="w-4 h-4" />
-                  <span>Supports JPG, PNG, and other image formats • Secure & Private</span>
-                </div>
-              </div>
+            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center mb-6 mx-auto">
+              <FileImage className="w-10 h-10 text-white" />
             </div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-3">
+              Drop your X-ray here or click to browse
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Advanced custom machine learning model analysis
+            </p>
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <Shield className="w-4 h-4" />
+              <span>Secure & Private • JPG, PNG supported</span>
+            </div>
+          </div>
 
-            {(uploading || analyzing) && (
-              <div className="mt-8 backdrop-blur-sm bg-indigo-50/80 rounded-2xl p-6 border border-indigo-200">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent"></div>
-                  <div>
-                    <p className="text-indigo-800 font-bold text-lg">
-                      {uploading ? "Uploading image..." : "AI analyzing your X-ray..."}
-                    </p>
-                    <p className="text-indigo-600 text-sm">
-                      {uploading ? "Securing your data" : "Custom ML model processing"}
-                    </p>
-                  </div>
-                </div>
-                {analyzing && (
-                  <div className="w-full bg-indigo-200 rounded-full h-3 overflow-hidden">
-                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 h-3 rounded-full animate-pulse transition-all duration-1000" style={{ width: '75%' }}></div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {errorMsg && (
-              <div className="mt-8 flex items-center gap-4 backdrop-blur-sm bg-red-50/80 border border-red-200 text-red-700 px-6 py-4 rounded-2xl">
-                <AlertCircle className="w-6 h-6 flex-shrink-0" />
+          {(uploading || analyzing) && (
+            <div className="mt-8 bg-indigo-50 rounded-2xl p-6">
+              <div className="flex items-center space-x-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent"></div>
                 <div>
-                  <p className="font-semibold">Analysis Error</p>
-                  <p className="text-sm">{errorMsg}</p>
+                  <p className="text-indigo-800 font-bold text-lg">
+                    {uploading ? "Uploading..." : "AI analyzing..."}
+                  </p>
+                  <p className="text-indigo-600 text-sm">Custom ML model processing</p>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+          
+          {errorMsg && (
+            <div className="mt-8 flex items-center gap-4 bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl">
+              <AlertCircle className="w-6 h-6" />
+              <p>{errorMsg}</p>
+            </div>
+          )}
         </div>
 
-        {/* Enhanced Analysis Results */}
+        {/* Analysis Results */}
         {analysisResult && (
-          <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8 border border-white/20 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-blue-50/50"></div>
-            <div className="relative">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-green-800 bg-clip-text text-transparent">
-                      AI Analysis Complete
-                    </h2>
-                    <p className="text-gray-600 font-medium">Advanced custom model results</p>
-                  </div>
-                </div>
-                <button
-                  onClick={downloadReport}
-                  className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 font-bold"
-                >
-                  <Download className="w-5 h-5" />
-                  Download Report
-                </button>
-              </div>
-
-              {/* Enhanced Images Display */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-4 h-4 bg-blue-600 rounded-full shadow-lg"></div>
-                    <h3 className="font-bold text-xl text-gray-800">Original Image</h3>
-                  </div>
-                  <div className="group relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-gray-100 to-gray-200 hover:shadow-2xl transition-all duration-300">
-                    <Image
-                      src={analysisResult.originalImage}
-                      alt="Original dental X-ray"
-                      fill
-                      className="object-contain group-hover:scale-105 transition-transform duration-300"
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-4 h-4 bg-purple-600 rounded-full shadow-lg"></div>
-                    <h3 className="font-bold text-xl text-gray-800">AI Analysis Results</h3>
-                  </div>
-                  <div className="group relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl bg-gradient-to-br from-gray-100 to-gray-200 hover:shadow-2xl transition-all duration-300">
-                    <Image
-                      src={analysisResult.annotatedImage}
-                      alt="AI-analyzed dental X-ray"
-                      fill
-                      className="object-contain group-hover:scale-105 transition-transform duration-300"
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                    />
-                  </div>
+          <div className="backdrop-blur-sm bg-white/80 rounded-3xl shadow-2xl p-8">
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-4">
+                <CheckCircle className="w-12 h-12 text-green-600" />
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900">Analysis Complete</h2>
+                  <p className="text-gray-600">Custom AI model results</p>
                 </div>
               </div>
+              <button
+                onClick={downloadReport}
+                className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:shadow-2xl transform hover:-translate-y-1 transition-all"
+              >
+                <Download className="w-5 h-5" />
+                Download Report
+              </button>
+            </div>
 
-              {/* Enhanced Detections Display */}
-              <div className="backdrop-blur-sm bg-gradient-to-br from-gray-50/80 to-white/80 rounded-2xl p-8 border border-gray-200/50">
-                <h3 className="font-bold text-2xl mb-6 flex items-center gap-3">
-                  <Brain className="w-6 h-6 text-purple-600" />
-                  AI Detection Results
-                </h3>
-                {analysisResult.detections.length === 0 ? (
-                  <div className="text-center py-12">
-                    <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-6" />
-                    <h4 className="text-2xl font-bold text-green-700 mb-2">Excellent News!</h4>
-                    <p className="text-green-600 text-lg font-medium">No dental issues detected by our AI</p>
-                    <p className="text-gray-600 text-sm mt-2">Your X-ray appears to show healthy dental structures</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {analysisResult.detections.map((detection, index) => (
-                      <div key={index} className="backdrop-blur-sm bg-white/80 rounded-2xl p-6 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 border border-white/50">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-xl text-gray-900 mb-2">{detection.label}</h4>
-                            <div className="flex items-center gap-6 flex-wrap">
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm font-medium text-gray-600">AI Confidence:</span>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-32 bg-gray-200 rounded-full h-3 overflow-hidden">
-                                    <div
-                                      className={`h-3 rounded-full transition-all duration-1000 ${
-                                        detection.confidence > 0.8 
-                                          ? 'bg-gradient-to-r from-red-500 to-red-600' 
-                                          : detection.confidence > 0.6 
-                                          ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
-                                          : 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                      }`}
-                                      style={{ width: `${detection.confidence * 100}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-lg font-bold">
-                                    {(detection.confidence * 100).toFixed(0)}%
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <span className={`px-4 py-2 text-sm font-bold rounded-full shadow-lg ${
-                            detection.confidence > 0.8 
-                              ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-700' 
-                              : detection.confidence > 0.6 
-                              ? 'bg-gradient-to-r from-yellow-100 to-orange-200 text-orange-700'
-                              : 'bg-gradient-to-r from-green-100 to-emerald-200 text-emerald-700'
-                          }`}>
-                            {detection.confidence > 0.8 ? 'High Priority' : detection.confidence > 0.6 ? 'Medium Priority' : 'Low Priority'}
-                          </span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <div className="space-y-4">
+                <h3 className="font-bold text-xl">Original Image</h3>
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
+                  <Image
+                    src={analysisResult.originalImage}
+                    alt="Original"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <h3 className="font-bold text-xl">AI Analysis</h3>
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
+                  <Image
+                    src={analysisResult.annotatedImage}
+                    alt="Analyzed"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-2xl p-8">
+              <h3 className="font-bold text-2xl mb-6 flex items-center gap-3">
+                <Brain className="w-6 h-6 text-purple-600" />
+                AI Detection Results
+              </h3>
+              {analysisResult.detections.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-6" />
+                  <h4 className="text-2xl font-bold text-green-700">No issues detected!</h4>
+                  <p className="text-gray-600">Your X-ray appears healthy</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {analysisResult.detections.map((detection, index) => (
+                    <div key={index} className="bg-white rounded-2xl p-6 shadow-lg">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold text-xl">{detection.label}</h4>
+                          <p className="text-gray-600">
+                            Confidence: {(detection.confidence * 100).toFixed(0)}%
+                          </p>
                         </div>
+                        <span className={`px-4 py-2 rounded-full text-sm font-bold ${
+                          detection.confidence > 0.8 ? 'bg-red-100 text-red-700' : 
+                          detection.confidence > 0.6 ? 'bg-yellow-100 text-yellow-700' : 
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {detection.confidence > 0.8 ? 'High' : detection.confidence > 0.6 ? 'Medium' : 'Low'}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Enhanced Analysis timestamp */}
-              <div className="mt-8 text-center">
-                <div className="inline-flex items-center gap-2 px-6 py-3 backdrop-blur-sm bg-gray-50/80 text-gray-600 rounded-2xl border border-gray-200/50">
-                  <Sparkles className="w-4 h-4" />
-                  <span className="text-sm font-medium">
-                    Analysis completed at {new Date(analysisResult.timestamp).toLocaleString()}
-                  </span>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
