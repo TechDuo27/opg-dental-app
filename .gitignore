@@ -41,10 +41,7 @@ __pycache__/
 .Python
 ml/__pycache__/
 
-# ML Models
-ml/*.pt
-ml/*.pth
-ml/best.pt
+
 
 # Temp files
 /tmp
