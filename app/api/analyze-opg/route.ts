@@ -35,8 +35,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create temp directory
-    const tempDir = path.join(process.cwd(), 'tmp', userId)
+    // Create temp directory in /tmp for Vercel compatibility
+    const tempDir = process.env.VERCEL === '1' 
+      ? path.join('/tmp', userId) 
+      : path.join(process.cwd(), 'tmp', userId)
     await fs.mkdir(tempDir, { recursive: true })
 
     // Download image
@@ -59,8 +61,9 @@ export async function POST(request: NextRequest) {
     outputPath = path.join(tempDir, `output_${uuidv4()}.jpg`)
 
     // Prepare Python command
-    const pythonScript = path.join(process.cwd(), 'ml', 'inference.py')
-    const weightsPath = path.join(process.cwd(), 'ml', 'best.pt')
+    const baseDir = process.env.VERCEL === '1' ? '/var/task' : process.cwd()
+    const pythonScript = path.join(baseDir, 'ml', 'inference.py')
+    const weightsPath = path.join(baseDir, 'ml', 'best.pt')
     
     // Check if files exist
     try {
@@ -72,8 +75,10 @@ export async function POST(request: NextRequest) {
       throw new Error(`Required files not found: ${errorMessage}`)
     }
     
-    // Use python.exe explicitly on Windows
-    const pythonCmd = process.platform === 'win32' ? 'python.exe' : 'python'
+    // Use python.exe explicitly on Windows, and ensure we use the right Python in Vercel
+    const pythonCmd = process.platform === 'win32' 
+      ? 'python.exe' 
+      : (process.env.VERCEL === '1' ? '/var/lang/bin/python3' : 'python')
     const args = [
       pythonScript,
       '--input', inputPath,
