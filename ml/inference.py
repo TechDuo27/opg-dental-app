@@ -44,7 +44,7 @@ def load_model(weights_path, conf_threshold=0.25):
                           verbose=False)
     model.conf = conf_threshold  # Set confidence threshold
     
-    # Update cache
+    
     MODEL_CACHE = model
     LAST_WEIGHTS_PATH = str(weights_path)
     
